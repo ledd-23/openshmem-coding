@@ -8,5 +8,6 @@ int main (int argc, char **argv) {
 	me = shmem_my_pe ();
 	npes = shmem_n_pes ();
 	printf ("Hello World from PE %4d of %4d\n", me, npes);
+	shmem_finalize();
 	return 0;
 }
