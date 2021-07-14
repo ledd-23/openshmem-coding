@@ -1,3 +1,4 @@
+//Skeleton written by Professor Larkins. Modified by Danh Le.
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -39,7 +40,7 @@ int main(int argc, char **argv) {
 	       value = size;
 	  }
 
-          parent_sent = left_sent = right_sent = 0; //0 is unread, 1 is read
+          parent_sent = left_sent = right_sent = 0;
           myval = leftval = rightval = 0;
 
 	  shmem_barrier_all();
