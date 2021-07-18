@@ -11,3 +11,6 @@ array: array.c
 		
 broadcast: broadcast.c
 	        $(CC) -o $@ $<
+
+team: team.c
+		 $(CC) -o $@ $<
