@@ -23,7 +23,8 @@ void broadcast(int64_t *val) {
 
 void reduce(int64_t *local, int64_t *result) {
 	int parent = (rank + 1) / 2 - 1;
-	*result = *local + leftval + rightval;
+	//*result = *local + leftval + rightval;
+	*result = *local * 10; 
 	if (parent >= 0 && rank % 2 != 0) {
 		shmem_putmem_signal(&leftval, result, sizeof(int64_t), &left_sent, 1, SHMEM_SIGNAL_SET, parent);
 	} else if (parent >= 0 && rank % 2 == 0) {
@@ -34,6 +35,7 @@ void reduce(int64_t *local, int64_t *result) {
 
 int main(int argc, char **argv) {
 	  int64_t reduceval = 0;
+
 	  setbuf(stdout, NULL);
 
 	  shmem_init();
@@ -76,7 +78,7 @@ int main(int argc, char **argv) {
 	  if (left + 1 < size){
 		  shmem_wait_until(&right_sent, SHMEM_CMP_EQ, 1);
 	  }
-
+	 
           reduce(&myval, &reduceval);
 
           shmem_barrier_all();
