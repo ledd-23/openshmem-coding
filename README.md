@@ -1,2 +1,2 @@
-# open_shmem_coding
+# openshmem-coding
 parallel programming practice
