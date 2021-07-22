@@ -14,3 +14,6 @@ broadcast: broadcast.c
 
 team: team.c
 		 $(CC) -o $@ $<
+
+monte_carlo_pi: monte_carlo_pi.c
+		 $(CC) -o $@ $<
