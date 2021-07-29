@@ -3,15 +3,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define width 32 //width of the image
+
+#define height 32 //height of the image
+
 int rank, size;
 
-int width = 32; //width of the image
+int32_t src[width*height]; //the original image
 
-int height = 32; //height of the image
-
-int32_t src[1024]; //the original image
-
-int32_t dst[1024]; //the blurred image
+int32_t dst[width*height]; //the blurred image
 
 //Return a specified pixel in the image
 int32_t apply(int x, int y, int32_t data[]) {
@@ -66,6 +66,7 @@ int32_t boxBlurKernel(int32_t data[], int x, int y, int radius) {
 	int32_t num = 0;
 	for (int i = clamp(y - radius, 0, height - 1); i <= clamp(y + radius, 0, height - 1); i ++){
 		for(int j = clamp(x - radius, 0, width - 1); j <= clamp(x + radius, 0, width - 1); j ++){
+		data[j + i*width] = shmem_g(&src[j + i*width], 0);
 		r += red(apply(j, i, data));
 		g += green(apply(j, i, data));
 		b += blue(apply(j, i, data));
@@ -79,13 +80,13 @@ int32_t boxBlurKernel(int32_t data[], int x, int y, int radius) {
 
 //Blurs the row of src into dst going from left to right
 void blur(int32_t src[], int32_t dst[], int from, int end, int radius) {
-	for (int y = from; y < end; y ++){
-		for (int x = 0; x < width; x++){
-			if (y >= 0 && y < height) {
-				update(x, y, boxBlurKernel(src, x, y, radius), dst);
-				//printf("Rank %d updated src[%d]=%d to dst[%d]=%d\n", rank, y*width+x, src[y*width+x], y*width+x, dst[y*width+x]);
-			}
-		}
+	for (int i = from; i < end; i ++){
+		int x = i - (i/height)*height;
+		int y = i / height;
+	
+		update(x, y, boxBlurKernel(src, x, y, radius), dst);
+
+		shmem_p(&dst[i], dst[i], 0);
 	}
 }
 
@@ -99,18 +100,11 @@ int main(int argc, char **argv) {
 
 	size = shmem_n_pes();
 	
-	int task_length = height / size;
+	int task_length = 1024 / size;
 		
-	if (rank == 0) {
-		printf("The task length is %d\n", task_length);
-		for (int i = 0; i < size; i++){
-			for (int j = i * task_length; j < i * task_length + task_length; j ++){
-				if (j > 1024) 
-					break;
-				printf("Putting %d into src[%d] of rank %d\n", j, j, i);
-				shmem_p(&src[j], j, i);
-			}
-		}
+	if (rank == 0){
+		for (int j = 0; j < 1024; j ++)
+			src[j] = j;
 	}
 	
 	shmem_barrier_all();
@@ -119,14 +113,19 @@ int main(int argc, char **argv) {
 	if (start + task_length >= 1024)
 		end =  1024 - 1;
 	else
-		end = start + 1024;
+		end = start + task_length;
+
+	shmem_barrier_all();
 
 	blur(src, dst, start, end + 1, 3);
 	
 	shmem_barrier_all();
 	
-	//TODO: atomically broadcast the results back into rank 0's dst. 
-	//TODO: fix task distribution.
+	if (rank == 0){
+		for (int i = 0; i < width*height; i ++)
+			printf("src[%d] = %d to dst[%d] = %d\n", i, src[i], i, dst[i]);
+	}
+	//TODO: fix the bottleneck 
 	
 	shmem_finalize();
 }
