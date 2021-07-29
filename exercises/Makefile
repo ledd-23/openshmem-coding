@@ -17,3 +17,6 @@ team: team.c
 
 monte_carlo_pi: monte_carlo_pi.c
 		 $(CC) -o $@ $<
+
+box_blur: box_blur.c
+		 $(CC) -o $@ $<
