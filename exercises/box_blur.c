@@ -2,16 +2,18 @@
 #include <shmemx.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
+#include <pthread.h>
 
-#define width 32 //width of the image
+#define width 128 //width of the image
 
-#define height 32 //height of the image
+#define height 256 //height of the image
 
 int rank, size;
 
-int32_t src[width*height]; //the original image
-
-int32_t dst[width*height]; //the blurred image
+int32_t array_a[width*height]; //original image
+ 
+int32_t array_b[width*height]; //blurred image
 
 //Return a specified pixel in the image
 int32_t apply(int x, int y, int32_t data[]) {
@@ -65,8 +67,9 @@ int32_t boxBlurKernel(int32_t data[], int x, int y, int radius) {
 	int32_t a = 0;
 	int32_t num = 0;
 	for (int i = clamp(y - radius, 0, height - 1); i <= clamp(y + radius, 0, height - 1); i ++){
-		for(int j = clamp(x - radius, 0, width - 1); j <= clamp(x + radius, 0, width - 1); j ++){
-		data[j + i*width] = shmem_g(&src[j + i*width], 0);
+		for(int j = clamp(x - radius, 0, width - 1); j <= clamp(x + radius, 0, width - 1); j ++)
+{
+		data[j + i*width] = shmem_g(&array_a[j + i*width], 0);
 		r += red(apply(j, i, data));
 		g += green(apply(j, i, data));
 		b += blue(apply(j, i, data));
@@ -80,52 +83,54 @@ int32_t boxBlurKernel(int32_t data[], int x, int y, int radius) {
 
 //Blurs the row of src into dst going from left to right
 void blur(int32_t src[], int32_t dst[], int from, int end, int radius) {
-	for (int i = from; i < end; i ++){
-		int x = i - (i/height)*height;
+	for (int i = from; i <= end; i ++){
 		int y = i / height;
-	
+		int x = i - y * height;
+		//printf("Rank %d has x=%d and y =%d\n", rank, x, y);
 		update(x, y, boxBlurKernel(src, x, y, radius), dst);
-
-		shmem_p(&dst[i], dst[i], 0);
+		shmem_p(&array_b[i], array_b[i], 0);
 	}
 }
 
 
 int main(int argc, char **argv) {
-	int start, end;
 
+	int start, end;
 	shmem_init();
 
 	rank = shmem_my_pe();
+	
+	//printf("length=%d\n", sizeof(array_a)/sizeof(int32_t));
 
 	size = shmem_n_pes();
 	
-	int task_length = 1024 / size;
-		
+	int task_length = (height*width) / size;
+	
+	start = rank * task_length;
+	if (start + task_length >= height*width)
+		end = height*width - 1;
+	else
+		end = start + task_length - 1;
+	printf("Rank %d has start=%d and end=%d\n", rank, start, end);
+	shmem_barrier_all();
+
 	if (rank == 0){
-		for (int j = 0; j < 1024; j ++)
-			src[j] = j;
+		for (int j = 0; j < height*width; j ++){
+			array_a[j] = j;
+		}
 	}
 	
 	shmem_barrier_all();
-
-	start = rank * task_length;
-	if (start + task_length >= 1024)
-		end =  1024 - 1;
-	else
-		end = start + task_length;
-
-	shmem_barrier_all();
-
-	blur(src, dst, start, end + 1, 3);
+	
+	//TODO: fix big overheasd
+	blur(array_a, array_b, start, end, 3);
 	
 	shmem_barrier_all();
 	
-	if (rank == 0){
+	/*if (rank == 0){
 		for (int i = 0; i < width*height; i ++)
 			printf("src[%d] = %d to dst[%d] = %d\n", i, src[i], i, dst[i]);
-	}
-	//TODO: fix the bottleneck 
+	}*/
 	
 	shmem_finalize();
 }
