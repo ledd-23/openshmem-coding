@@ -4,10 +4,11 @@
 #include <stdio.h>
 #include <time.h>
 #include <pthread.h>
+#include <omp.h>
 
-#define width 128 //width of the image
+#define width 1920 //width of the image
 
-#define height 256 //height of the image
+#define height 1080 //height of the image
 
 int rank, size;
 
@@ -24,6 +25,7 @@ int32_t apply(int x, int y, int32_t data[]) {
 void update(int x, int y, int32_t c, int32_t data[]) {
 	data[y * width + x] = c;
 }
+
 //Get the red component
 int32_t red(int32_t c) {
 	return (0xFF000000 & c) >> 24;
@@ -84,9 +86,8 @@ int32_t boxBlurKernel(int32_t data[], int x, int y, int radius) {
 //Blurs the row of src into dst going from left to right
 void blur(int32_t src[], int32_t dst[], int from, int end, int radius) {
 	for (int i = from; i <= end; i ++){
-		int y = i / height;
-		int x = i - y * height;
-		//printf("Rank %d has x=%d and y =%d\n", rank, x, y);
+		int y = i / width;
+		int x = i - y * width;
 		update(x, y, boxBlurKernel(src, x, y, radius), dst);
 		shmem_p(&array_b[i], array_b[i], 0);
 	}
@@ -111,7 +112,7 @@ int main(int argc, char **argv) {
 		end = height*width - 1;
 	else
 		end = start + task_length - 1;
-	printf("Rank %d has start=%d and end=%d\n", rank, start, end);
+
 	shmem_barrier_all();
 
 	if (rank == 0){
@@ -129,7 +130,7 @@ int main(int argc, char **argv) {
 	
 	/*if (rank == 0){
 		for (int i = 0; i < width*height; i ++)
-			printf("src[%d] = %d to dst[%d] = %d\n", i, src[i], i, dst[i]);
+			printf("src[%d] = %d to dst[%d] = %d\n", i, array_a[i], i, array_b[i]);
 	}*/
 	
 	shmem_finalize();
